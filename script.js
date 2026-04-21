@@ -220,3 +220,88 @@ window.onload = checkActiva;
 
 window.addEventListener('click', initAudio, { once: true });
 window.addEventListener('touchstart', initAudio, { once: true });
+// --- LÓGICA DE HISTORIAL ---
+
+function toggleHistorial() {
+    const div = document.getElementById('seccion-historial');
+    div.style.display = (div.style.display === 'none') ? 'block' : 'none';
+    if(div.style.display === 'block') renderHistorial();
+}
+
+// Modificamos la función finalizarTodo para que guarde antes de borrar
+function finalizarTodo() {
+    if(confirm("¿FINALIZAR INTERVENCIÓN? Se guardará en el historial y se limpiará el panel.")) {
+        
+        // 1. Crear el objeto de registro
+        let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
+        let registro = {
+            id: Date.now(),
+            info: intervencion,
+            equipos: eqs, // Guardamos todos los datos de los binomios
+            fecha: new Date().toLocaleString()
+        };
+        
+        // 2. Guardar en el historial
+        historial.push(registro);
+        localStorage.setItem('bvg_historial', JSON.stringify(historial));
+
+        // 3. Limpiar actual
+        intervencion = null; 
+        eqs = [];
+        localStorage.removeItem('bvg_int_data');
+        localStorage.removeItem('eq_bvg_timer_fix');
+        
+        checkActiva();
+    }
+}
+
+function renderHistorial() {
+    let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
+    let html = "";
+    historial.reverse().forEach(reg => {
+        html += `
+            <div style="background:white; padding:10px; margin-bottom:5px; border-left:5px solid red; font-size:0.8rem;">
+                <b>${reg.fecha}</b> - ${reg.info.nombre}<br>
+                ${reg.equipos.length} equipos registrados.
+            </div>
+        `;
+    });
+    document.getElementById('lista-historial').innerHTML = html || "No hay intervenciones guardadas.";
+}
+
+// --- FUNCIÓN PARA EXPORTAR A CSV ---
+function exportarTodoCSV() {
+    let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
+    if(historial.length === 0) return alert("No hay datos para exportar");
+
+    // Cabecera del CSV
+    let csvContent = "Fecha,Intervencion,Direccion,Equipo,PresionEntrada,PresionFinal,EntradaHora,Localizacion,Objetivo,ConsumoMedio\n";
+
+    historial.forEach(reg => {
+        reg.equipos.forEach(e => {
+            let fila = [
+                reg.fecha,
+                reg.info.nombre,
+                reg.info.direccion,
+                e.n,
+                e.pE,
+                e.pA,
+                e.hE,
+                e.sit,
+                e.obj,
+                Math.round(e.rMed)
+            ].join(",");
+            csvContent += fila + "\n";
+        });
+    });
+
+    // Crear el archivo y descargarlo
+    let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    let url = URL.createObjectURL(blob);
+    let link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `HISTORIAL_KONTROL_ERA_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
