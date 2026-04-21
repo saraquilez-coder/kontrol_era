@@ -18,7 +18,16 @@
             <span id="txt-int-dir" style="font-size:0.8rem; opacity:0.8;"></span>
         </div>
     </div>
+<div style="text-align:center; margin-bottom: 10px;">
+    <button class="btn btn-dark" style="display:inline-block; width:auto; padding: 10px;" onclick="toggleHistorial()">VER HISTORIAL</button>
+</div>
 
+<div id="seccion-historial" style="display:none; background:#eee; padding:15px; border-radius:10px; margin-bottom:20px;">
+    <h3>Historial de Intervenciones</h3>
+    <div id="lista-historial"></div>
+    <button class="btn btn-dark" onclick="exportarTodoCSV()">EXPORTAR TODO A CSV (EXCEL)</button>
+    <button class="btn btn-dark" style="background:#666; margin-top:5px;" onclick="toggleHistorial()">CERRAR</button>
+</div>
     <div id="timer-box"></div>
 
     <div id="setup-intervencion" class="form-zona">
