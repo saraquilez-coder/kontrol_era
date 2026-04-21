@@ -1,6 +1,7 @@
 let intervencion = JSON.parse(localStorage.getItem('bvg_int_data')) || null;
 let eqs = JSON.parse(localStorage.getItem('eq_bvg_timer_fix')) || [];
-let idS = -1; let audioCtx = null;
+let idS = -1; 
+let audioCtx = null;
 
 // Registro PWA
 if ('serviceWorker' in navigator) {
@@ -49,9 +50,20 @@ function checkActiva() {
 }
 
 function finalizarTodo() {
-    if(confirm("¿FINALIZAR INTERVENCIÓN?")) {
+    if(confirm("¿FINALIZAR INTERVENCIÓN? Se guardará en el historial y se limpiará el panel.")) {
+        let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
+        let registro = {
+            id: Date.now(),
+            info: intervencion,
+            equipos: JSON.parse(JSON.stringify(eqs)), // Copia profunda de los equipos
+            fecha: new Date().toLocaleString()
+        };
+        historial.push(registro);
+        localStorage.setItem('bvg_historial', JSON.stringify(historial));
+
         intervencion = null; eqs = [];
-        localStorage.clear();
+        localStorage.removeItem('bvg_int_data');
+        localStorage.removeItem('eq_bvg_timer_fix');
         checkActiva();
     }
 }
@@ -215,12 +227,6 @@ function saveData() {
 }
 
 function sync() { localStorage.setItem('eq_bvg_timer_fix', JSON.stringify(eqs)); }
-setInterval(render, 1000);
-window.onload = checkActiva;
-
-window.addEventListener('click', initAudio, { once: true });
-window.addEventListener('touchstart', initAudio, { once: true });
-// --- LÓGICA DE HISTORIAL ---
 
 function toggleHistorial() {
     const div = document.getElementById('seccion-historial');
@@ -228,80 +234,70 @@ function toggleHistorial() {
     if(div.style.display === 'block') renderHistorial();
 }
 
-// Modificamos la función finalizarTodo para que guarde antes de borrar
-function finalizarTodo() {
-    if(confirm("¿FINALIZAR INTERVENCIÓN? Se guardará en el historial y se limpiará el panel.")) {
-        
-        // 1. Crear el objeto de registro
-        let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
-        let registro = {
-            id: Date.now(),
-            info: intervencion,
-            equipos: eqs, // Guardamos todos los datos de los binomios
-            fecha: new Date().toLocaleString()
-        };
-        
-        // 2. Guardar en el historial
-        historial.push(registro);
-        localStorage.setItem('bvg_historial', JSON.stringify(historial));
-
-        // 3. Limpiar actual
-        intervencion = null; 
-        eqs = [];
-        localStorage.removeItem('bvg_int_data');
-        localStorage.removeItem('eq_bvg_timer_fix');
-        
-        checkActiva();
-    }
-}
-
 function renderHistorial() {
     let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
     let html = "";
-    historial.reverse().forEach(reg => {
+    historial.slice().reverse().forEach(reg => {
         html += `
-            <div style="background:white; padding:10px; margin-bottom:5px; border-left:5px solid red; font-size:0.8rem;">
-                <b>${reg.fecha}</b> - ${reg.info.nombre}<br>
-                ${reg.equipos.length} equipos registrados.
+            <div style="background:white; padding:10px; margin-bottom:5px; border-left:5px solid red; font-size:0.8rem; color:#000;">
+                <b>${reg.fecha}</b> - ${reg.info.nombre.toUpperCase()}<br>
+                ${reg.equipos.length} binomios registrados.
             </div>
         `;
     });
     document.getElementById('lista-historial').innerHTML = html || "No hay intervenciones guardadas.";
 }
 
-// --- FUNCIÓN PARA EXPORTAR A CSV ---
 function exportarTodoCSV() {
     let historial = JSON.parse(localStorage.getItem('bvg_historial')) || [];
     if(historial.length === 0) return alert("No hay datos para exportar");
 
-    // Cabecera del CSV
-    let csvContent = "Fecha,Intervencion,Direccion,Equipo,PresionEntrada,PresionFinal,EntradaHora,Localizacion,Objetivo,ConsumoMedio\n";
+    let columnas = [
+        "Fecha Registro", "Intervencion", "Direccion", "Nombre Equipo", "Nº Profesionales", 
+        "Localizacion", "Objetivo", "Hora Entrada", "Presion Entrada (bar)", "Presion Final (bar)", 
+        "Consumo Real (bar)", "Consumo Medio (l/min)", "Consumo Inst. (l/min)", 
+        "Tiempo Trabajo Total", "Prevision Salida (55 l/min)", "Prevision Salida (Media)"
+    ];
+
+    let csvContent = columnas.join(";") + "\n";
 
     historial.forEach(reg => {
         reg.equipos.forEach(e => {
+            let consumoBar = e.pE - e.pA;
+            let tiempoTotal = e.activo ? (Date.now() - e.tI + e.tAcumuladoPrevio) : e.tAcumuladoPrevio;
+            let tiempoTexto = formatTimeMS(tiempoTotal);
+            let profesionales = e.prof.filter(p => p !== "-").join(" / ");
+
             let fila = [
                 reg.fecha,
-                reg.info.nombre,
-                reg.info.direccion,
-                e.n,
-                e.pE,
-                e.pA,
-                e.hE,
-                e.sit,
-                e.obj,
-                Math.round(e.rMed)
-            ].join(",");
+                reg.info.nombre.replace(/;/g, ","),
+                reg.info.direccion.replace(/;/g, ","),
+                e.n.replace(/;/g, ","),
+                profesionales,
+                e.sit.replace(/;/g, ","),
+                e.obj.replace(/;/g, ","),
+                e.hE, e.pE, e.pA, consumoBar,
+                Math.round(e.rMed), Math.round(e.rInst),
+                tiempoTexto, e.hS55, e.hSMed
+            ].join(";");
             csvContent += fila + "\n";
         });
     });
 
-    // Crear el archivo y descargarlo
-    let blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    let BOM = "\uFEFF";
+    let blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     let url = URL.createObjectURL(blob);
     let link = document.createElement("a");
+    let f = new Date();
+    let fechaStr = `${f.getFullYear()}${f.getMonth()+1}${f.getDate()}_${f.getHours()}${f.getMinutes()}`;
     link.setAttribute("href", url);
-    link.setAttribute("download", `HISTORIAL_KONTROL_ERA_${Date.now()}.csv`);
+    link.setAttribute("download", `PARTE_INTERVENCION_${fechaStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
+
+setInterval(render, 1000);
+window.onload = checkActiva;
+window.addEventListener('click', initAudio, { once: true });
+window.addEventListener('touchstart', initAudio, { once: true });
