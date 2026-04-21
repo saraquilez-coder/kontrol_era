@@ -1,0 +1,17 @@
+{
+  "name": "KONTROL_ERA BVG",
+  "short_name": "KONTROL",
+  "description": "Control de Binomios Vitoria-Gasteiz",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#d32f2f",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/784/784332.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
